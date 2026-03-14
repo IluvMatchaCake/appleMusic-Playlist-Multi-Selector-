@@ -78,7 +78,6 @@ The popup includes a **"Remember last selection"** toggle (on by default). When 
 ## Constraints & known limitations
 
 - **Chrome only** — the script relies on Tampermonkey, which works best in Chrome/Chromium. It has not been tested in Safari or Firefox.
-- **Does not work in the PWA window** — if you launched Apple Music via a desktop shortcut (the standalone app-like window), Tampermonkey won't inject. Use Apple Music in a regular Chrome tab instead.
 - **Catalog songs only** — the script grabs the song ID from the Apple Music catalog URL in the row. Songs that don't have a direct `/song/` link in their row (e.g. some locally uploaded tracks) may not work.
 - **Library playlists only** — only your personal library playlists are shown. Apple Music editorial or algorithmic playlists (like New Music Mix) cannot be added to.
 - **Up to 100 playlists** — the API call fetches a maximum of 100 playlists. If you have more than 100, the rest won't appear.

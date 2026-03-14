@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Apple Music — Add to Multiple Playlists
 // @namespace    https://music.apple.com
-// @version      1.1.0
+// @version      1.1.1
 // @description  Adds a button to songs that opens a playlist picker, letting you add a song to multiple playlists at once.
 // @author       You
 // @match        https://music.apple.com/*
@@ -42,24 +42,7 @@
       from { transform: scale(0.88); opacity: 0; }
       to   { transform: scale(1);    opacity: 1; }
     }
-    #amp-popup-header {
-      padding: 16px 18px 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    #amp-popup-song-name {
-      font-size: 13px;
-      color: rgba(255,255,255,0.45);
-      margin: 0 0 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    #amp-popup-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #fff;
-      margin: 0;
-    }
+
     #amp-playlist-list {
       list-style: none;
       margin: 0;
@@ -170,6 +153,74 @@
     }
     #amp-status-bar.success { color: #34c759; }
     #amp-status-bar.error   { color: #ff453a; }
+    #amp-popup-header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #amp-header-art {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.08);
+    }
+    #amp-header-text { flex: 1; min-width: 0; }
+    #amp-popup-song-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin: 0 0 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #amp-popup-artist-name {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #amp-popup-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.3);
+      margin: 4px 0 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    #amp-search-bar {
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    #amp-search-input {
+      width: 100%;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 13px;
+      color: #fff;
+      outline: none;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    #amp-search-input::placeholder { color: rgba(255,255,255,0.3); }
+    #amp-search-input:focus { border-color: rgba(252,60,68,0.5); }
+    .amp-playlist-art {
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.08);
+    }
+    .amp-playlist-item-hidden { display: none !important; }
     #amp-memory-bar {
       display: flex;
       align-items: center;
@@ -216,7 +267,11 @@
   async function getPlaylists() {
     if (_playlistCache) return _playlistCache;
     const playlists = await fetchPlaylists();
-    _playlistCache = playlists.map(p => ({ id: p.id, name: p.attributes.name }));
+    _playlistCache = playlists.map(p => {
+      const art = p.attributes && p.attributes.artwork;
+      const artUrl = art ? art.url.replace('{w}', '64').replace('{h}', '64') : null;
+      return { id: p.id, name: p.attributes.name, artUrl };
+    });
     return _playlistCache;
   }
 
@@ -238,7 +293,7 @@
   }
 
   // ─── Popup ──────────────────────────────────────────────────────────────────
-  async function openPopup(songName, songId) {
+  async function openPopup(songName, songId, artUrl, artistName) {
     // Remove existing popup
     const existing = document.getElementById('amp-popup-overlay');
     if (existing) existing.remove();
@@ -249,8 +304,15 @@
     overlay.innerHTML = `
       <div id="amp-popup" role="dialog" aria-modal="true" aria-label="Add to playlists">
         <div id="amp-popup-header">
-          <p id="amp-popup-song-name">${escHtml(songName || 'Selected song')}</p>
-          <p id="amp-popup-title">Add to playlists</p>
+          ${artUrl ? `<img id="amp-header-art" src="${escHtml(artUrl)}" alt="">` : '<div id="amp-header-art"></div>'}
+          <div id="amp-header-text">
+            <p id="amp-popup-song-name">${escHtml(songName || 'Selected song')}</p>
+            <p id="amp-popup-artist-name">${escHtml(artistName || '')}</p>
+            <p id="amp-popup-title">Add to playlists</p>
+          </div>
+        </div>
+        <div id="amp-search-bar">
+          <input id="amp-search-input" type="text" placeholder="Search playlists…" autocomplete="off">
         </div>
         <ul id="amp-playlist-list">
           <li class="amp-playlist-item" style="color:rgba(255,255,255,0.4);font-size:13px;">Loading playlists…</li>
@@ -302,13 +364,26 @@
     // Render playlist checkboxes, auto-checking last selected if memory is on
     overlay.querySelector('#amp-playlist-list').innerHTML = playlists.map((pl, i) => {
       const wasSelected = memEnabled && lastSelected.includes(pl.id);
+      const artImg = pl.artUrl
+        ? `<img class="amp-playlist-art" src="${escHtml(pl.artUrl)}" alt="">`
+        : `<div class="amp-playlist-art"></div>`;
       return `
-        <li class="amp-playlist-item" data-index="${i}">
+        <li class="amp-playlist-item" data-index="${i}" data-name="${escHtml(pl.name.toLowerCase())}">
           <input type="checkbox" id="amp-pl-${i}" data-id="${escHtml(pl.id)}" data-name="${escHtml(pl.name)}" ${wasSelected ? 'checked' : ''}>
           <label class="amp-playlist-label" for="amp-pl-${i}">${escHtml(pl.name)}</label>
+          ${artImg}
         </li>
       `;
     }).join('');
+
+    // Search bar filtering
+    overlay.querySelector('#amp-search-input').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      overlay.querySelectorAll('#amp-playlist-list .amp-playlist-item').forEach(li => {
+        const name = li.dataset.name || '';
+        li.classList.toggle('amp-playlist-item-hidden', q.length > 0 && !name.includes(q));
+      });
+    });
 
     // Only target playlist checkboxes, not the memory toggle
     const checkboxes = overlay.querySelectorAll('#amp-playlist-list input[type="checkbox"]');
@@ -439,7 +514,11 @@
         e.stopPropagation();
         e.preventDefault();
         const songId = getSongIdFromRow(row);
-        openPopup(songName, songId);
+        const artEl = row.querySelector('.artwork-component__image');
+        const artUrl = artEl ? artEl.src : null;
+        const artistEl = row.querySelector('.songs-list-row__by-line a, .songs-list__col--secondary a');
+        const artistName = artistEl ? artistEl.textContent.trim() : '';
+        openPopup(songName, songId, artUrl, artistName);
       });
 
       // Force controls container wide enough to show our button
