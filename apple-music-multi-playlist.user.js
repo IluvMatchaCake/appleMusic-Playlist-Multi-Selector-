@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Apple Music — Add to Multiple Playlists
 // @namespace    https://music.apple.com
-// @version      1.1.1
+// @version      1.1.2
 // @description  Adds a button to songs that opens a playlist picker, letting you add a song to multiple playlists at once.
 // @author       You
 // @match        https://music.apple.com/*
@@ -514,8 +514,12 @@
         e.stopPropagation();
         e.preventDefault();
         const songId = getSongIdFromRow(row);
-        const artEl = row.querySelector('.artwork-component__image');
-        const artUrl = artEl ? artEl.src : null;
+        // Grab art from srcset since Apple Music lazy-loads the actual src
+        const artSource = row.querySelector('.artwork-component picture source');
+        let artUrl = null;
+        if (artSource && artSource.srcset) {
+          artUrl = artSource.srcset.split(',')[0].trim().split(' ')[0];
+        }
         const artistEl = row.querySelector('.songs-list-row__by-line a, .songs-list__col--secondary a');
         const artistName = artistEl ? artistEl.textContent.trim() : '';
         openPopup(songName, songId, artUrl, artistName);
